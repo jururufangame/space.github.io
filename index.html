@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>태양계</title>
+<style>
+  body { margin:0; overflow:hidden; background:black; }
+  #controls {
+    position: absolute; top: 10px; left: 10px; z-index: 100;
+    font-family: Arial, sans-serif; color: white;
+  }
+  button { margin:4px; padding:6px 10px; font-size:14px; }
+  #info { margin-top:6px; font-size:13px; color:#ddd; }
+</style>
+</head>
+<body>
+<div id="controls">
+  <button id="btnRun">정지</button>
+  <button id="btnOrbitToggle">궤도선 숨기기</button>
+  <div id="info">마우스 드래그: 회전 / 휠: 줌</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+let scene, camera, renderer, controls;
+let planetPivots = [];   
+let planets = [];      
+let orbitLines = [];   
+let isRunning = true;
+let showOrbits = true;
+let moonPivot;          
+let moonMesh;
+
+init();
+animate();
+
+function init(){
+  scene = new THREE.Scene();
+
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 5000);
+  camera.position.set(0, 350, 900);
+
+  renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 100;
+  controls.maxDistance = 3000;
+
+  const sunLight = new THREE.PointLight(0xffffff, 2.0, 5000);
+  sunLight.position.set(0,0,0);
+  scene.add(sunLight);
+  scene.add(new THREE.AmbientLight(0x222222));
+
+  addStarField();
+
+  const sun = new THREE.Mesh(
+    new THREE.SphereGeometry(40, 32, 32),
+    new THREE.MeshBasicMaterial({ color: 0xffdd55 })
+  );
+  scene.add(sun);
+
+  const planetData = [
+    {name:"수성", size:6, dist:80, speed:0.018, tilt: 0.06},
+    {name:"금성", size:9, dist:115, speed:0.015, tilt: 0.04},
+    {name:"지구", size:11, dist:155, speed:0.012, tilt: 0.07, spin:0.04, polar:true},
+    {name:"화성", size:8, dist:195, speed:0.010, tilt: 0.09, spots:true},
+    {name:"목성", size:24, dist:250, speed:0.007, tilt: 0.05, redSpot:true, moons:6},
+    {name:"토성", size:20, dist:305, speed:0.006, tilt: 0.06, ring:true},
+    {name:"천왕성", size:15, dist:360, speed:0.0045, tilt: 0.03},
+    {name:"해왕성", size:15, dist:415, speed:0.0038, tilt: 0.04, darkSpot:true}
+  ];
+
+  planetData.forEach((p, idx) => {
+
+    const pivot = new THREE.Object3D();
+    scene.add(pivot);
+
+    pivot.rotation.x = p.tilt; 
+
+    const planetMat = new THREE.MeshStandardMaterial({ color: getColorByName(p.name), roughness:0.8, metalness:0.0 });
+    const planetMesh = new THREE.Mesh(new THREE.SphereGeometry(p.size, 32, 32), planetMat);
+
+    planetMesh.position.set(p.dist, 0, 0);
+    pivot.add(planetMesh);
+
+    const orbit = createOrbitLine(p.dist, 256, 0xffffff);
+
+    orbit.rotation.x = p.tilt;
+    scene.add(orbit);
+
+
+    if(p.polar){
+      addPolarCaps(planetMesh, p.size);
+    }
+    if(p.spots){
+      addScars(planetMesh, p.size, 6);
+    }
+    if(p.redSpot){
+      addRedSpot(planetMesh, p.size);
+      addManyMoons(planetMesh, p.size, p.moons || 5);
+    }
+    if(p.darkSpot){
+      addDarkSpot(planetMesh, p.size);
+    }
+    if(p.ring){
+      addSaturnRing(planetMesh, p.size);
+    }
+
+    if(p.name === "지구"){
+      moonPivot = new THREE.Object3D();
+      planetMesh.add(moonPivot);
+      moonMesh = new THREE.Mesh(new THREE.SphereGeometry(3.2, 16, 16), new THREE.MeshStandardMaterial({ color:0x999999 }));
+      moonMesh.position.set(18, 0, 0);
+      moonPivot.add(moonMesh);
+      moonPivot.userData = { angle: Math.random() * Math.PI * 2, speed: 0.04 };
+    }
+
+    planetPivots.push({ pivot: pivot, data: p, angle: Math.random()*Math.PI*2 });
+    planets.push({ mesh: planetMesh, data:p });
+    orbitLines.push(orbit);
+  });
+
+  document.getElementById('btnRun').onclick = () => {
+    isRunning = !isRunning;
+    document.getElementById('btnRun').textContent = isRunning ? "정지" : "재생";
+  };
+  document.getElementById('btnOrbitToggle').onclick = () => {
+    showOrbits = !showOrbits;
+    orbitLines.forEach(o => o.visible = showOrbits);
+    document.getElementById('btnOrbitToggle').textContent = showOrbits ? "궤도선 숨기기" : "궤도선 보이기";
+  };
+
+  window.addEventListener('resize', onWindowResize);
+}
+
+
+function animate(){
+  requestAnimationFrame(animate);
+
+  planetPivots.forEach(item => {
+    if(isRunning) item.pivot.rotation.y += item.data.speed;
+(spin) : planet.mesh.rotation.y
+    const planetMesh = item.pivot.children[0]; // planet mesh가 pivot의 첫번째 자식
+    if(item.data.spin && isRunning){
+      planetMesh.rotation.y += item.data.spin;
+    } else {
+      if(item.data.name === "목성" || item.data.name === "토성" || item.data.name === "천왕성") planetMesh.rotation.y += 0.02;
+    }
+
+    if(planetMesh.userData.moons){
+      planetMesh.userData.moons.forEach(mobj => {
+        if(isRunning) mobj.pivot.rotation.y += mobj.speed;
+      });
+    }
+  });
+
+  if(moonPivot){
+    if(isRunning) moonPivot.rotation.y += moonPivot.userData.speed;
+    const earthEntry = planets.find(p => p.data.name === "지구");
+    if(earthEntry && isRunning) earthEntry.mesh.rotation.y += 0.04;
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+
+function onWindowResize(){
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function getColorByName(name){
+  switch(name){
+    case "수성": return 0xaaaaaa;
+    case "금성": return 0xffc97b;
+    case "지구": return 0x4ba3ff;
+    case "화성": return 0xff5f3d;
+    case "목성": return 0xd18f47;
+    case "토성": return 0xe8d59e;
+    case "천왕성": return 0x9dfaff;
+    case "해왕성": return 0x4977ff;
+    default: return 0x999999;
+  }
+}
+
+function createOrbitLine(radius, segments = 128, color = 0x888888){
+  const geometry = new THREE.BufferGeometry();
+  const positions = [];
+  for(let i=0;i<=segments;i++){
+    const t = (i/segments) * Math.PI * 2;
+    positions.push(Math.cos(t) * radius, 0, Math.sin(t) * radius);
+  }
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  const material = new THREE.LineBasicMaterial({ color: color, transparent:true, opacity:0.5 });
+  const line = new THREE.Line(geometry, material);
+  line.rotation.x = 0;
+  return line;
+}
+
+function addPolarCaps(planetMesh, size){
+  const capMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness:0.9 });
+  const capN = new THREE.Mesh(new THREE.SphereGeometry(size*0.6, 16, 16), capMat);
+  capN.position.set(0, size*0.75, 0); 
+  capN.scale.set(1,0.5,1); 
+  planetMesh.add(capN);
+
+  const capS = new THREE.Mesh(new THREE.SphereGeometry(size*0.6, 16, 16), capMat);
+  capS.position.set(0, -size*0.75, 0);
+  capS.scale.set(1,0.5,1);
+  planetMesh.add(capS);
+}
+
+function addScars(planetMesh, size, count){
+  for(let i=0;i<count;i++){
+    const s = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 8), new THREE.MeshStandardMaterial({ color:0x993322 }));
+
+    const phi = Math.acos(2*Math.random() - 1);
+    const theta = Math.random()*Math.PI*2;
+    const x = Math.sin(phi)*Math.cos(theta)*size;
+    const y = Math.cos(phi)*size;
+    const z = Math.sin(phi)*Math.sin(theta)*size;
+    s.position.set(x,y,z);
+    planetMesh.add(s);
+  }
+}
+
+
+function addRedSpot(planetMesh, size){
+  const spot = new THREE.Mesh(new THREE.SphereGeometry(size*0.18, 12, 12), new THREE.MeshStandardMaterial({ color:0xff3300 }));
+  spot.position.set(size*0.6, 0, 0);
+  planetMesh.add(spot);
+}
+
+function addDarkSpot(planetMesh, size){
+  const spot = new THREE.Mesh(new THREE.SphereGeometry(size*0.14, 12, 12), new THREE.MeshStandardMaterial({ color:0x001133 }));
+  spot.position.set(-size*0.5, 0, 0);
+  planetMesh.add(spot);
+}
+
+function addSaturnRing(planetMesh, size){
+  const ring = new THREE.Mesh(new THREE.RingGeometry(size*1.2, size*1.7, 64), new THREE.MeshBasicMaterial({ color:0xded19b, side:THREE.DoubleSide, transparent:true, opacity:0.6 }));
+  ring.rotation.x = Math.PI / 2;
+  planetMesh.add(ring);
+}
+
+function addManyMoons(planetMesh, planetSize, count){
+  planetMesh.userData.moons = [];
+  for(let i=0;i<count;i++){
+    const mPivot = new THREE.Object3D();
+    mPivot.position.set(0,0,0);
+    planetMesh.add(mPivot);
+
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1.6, 12, 12), new THREE.MeshStandardMaterial({ color:0xcccccc }));
+    const r = planetSize + 4 + i*2.5;
+    m.position.set(r, 0, 0);
+    mPivot.add(m);
+
+    planetMesh.userData.moons.push({ pivot: mPivot, speed: 0.02 + Math.random()*0.02 });
+  }
+}
+
+function addStarField(){
+  const starsGeo = new THREE.BufferGeometry();
+  const starCount = 1500;
+  const positions = new Float32Array(starCount * 3);
+  for(let i=0;i<starCount;i++){
+    positions[i*3 + 0] = (Math.random()-0.5) * 6000;
+    positions[i*3 + 1] = (Math.random()-0.5) * 6000;
+    positions[i*3 + 2] = (Math.random()-0.5) * 6000;
+  }
+  starsGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 2 });
+  const stars = new THREE.Points(starsGeo, starsMat);
+  scene.add(stars);
+}
+
+(function createRenderer() {
+  // renderer가 이미 만들어졌다면 재사용 (init()에서 append)
+  renderer.setClearColor(0x000000, 1);
+})();
+
+</script>
+</body>
+</html>
